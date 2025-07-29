@@ -27,7 +27,7 @@ import os
 DATA_DIR = './data/'  # Directory where the data files are stored
 INVENTORY_PATH = './INVENTORY.xlsx' # "Master file" with all of the original data
 FILTERED_PATH = './FILTERED.xlsx' # Handmade file with relevant identifed data
-STANDARDIZED_PATH = './standardized_data.json'  # Output file for standardized data
+STANDARDIZED_PATH = './standardized_data'  # Output file for standardized data
 
 def capture_rows_and_metadata():
     """
@@ -91,7 +91,7 @@ def capture_master_content(filtered_data):
 
     return pd.DataFrame(standardized_data)
 
-def main():
+def main(output_type: str = 'json'):
     """
     Main function to execute the row capture and standardization process.
     """
@@ -111,7 +111,11 @@ def main():
     })
 
     # Save as json for debugging first
-    standardized_df.to_json(os.path.join(DATA_DIR, STANDARDIZED_PATH), orient='records', indent=4)
+    match output_type:
+        case 'json':
+            standardized_df.to_json(os.path.join(DATA_DIR, STANDARDIZED_PATH), orient='records', indent=4)
+        case 'excel':
+            standardized_df.to_excel(os.path.join(DATA_DIR, STANDARDIZED_PATH), index=False)
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
@@ -120,12 +124,13 @@ if __name__ == "__main__":
     parser.add_argument('--standardized-name', type=str, default=STANDARDIZED_PATH, help='Name of the standardized data file.')
     parser.add_argument('--inventory-name', type=str, default=INVENTORY_PATH, help='Name of the master inventory file.')
     parser.add_argument('--filtered-name', type=str, default=FILTERED_PATH, help='Name of the filtered data file.')
+    parser.add_argument('--output-type', type=str, choices=['json', 'excel'], default='json', help='Output format for standardized data.')
     args = parser.parse_args()
 
     DATA_DIR = args.data_dir
     INVENTORY_PATH = args.inventory_name
     FILTERED_PATH = args.filtered_name
-    STANDARDIZED_PATH = args.standardized_name
-    main()
+    STANDARDIZED_PATH = args.standardized_name + ('.json' if args.output_type == 'json' else '.xlsx')
+    main(output_type=args.output_type)
     print(f"Data processing complete. Standardized data saved to '{STANDARDIZED_PATH}'.")
 
