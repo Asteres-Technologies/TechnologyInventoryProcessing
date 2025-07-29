@@ -1,4 +1,4 @@
-# Excel Row Capture and Standardization Tool
+# Technology Inventory Processor
 
 ## Overview
 
