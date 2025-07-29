@@ -24,9 +24,10 @@ Output format will be:
 import pandas as pd
 import os
 
+DATA_DIR = './data/'  # Directory where the data files are stored
 INVENTORY_PATH = './INVENTORY.xlsx' # "Master file" with all of the original data
 FILTERED_PATH = './FILTERED.xlsx' # Handmade file with relevant identifed data
-OUTPUT_PATH = './STANDARDIZED.' # Output file with standardized data
+STANDARDIZED_PATH = './standardized_data.json'  # Output file for standardized data
 
 def capture_rows_and_metadata():
     """
@@ -39,7 +40,7 @@ def capture_rows_and_metadata():
     - dict: A dictionary where keys are row numbers and values are dictionaries of metadata.
     """
     filtered_data = {}
-    xls = pd.ExcelFile(FILTERED_PATH)
+    xls = pd.ExcelFile(os.path.join(DATA_DIR, FILTERED_PATH))
     sheets_to_skip = ["Non-Inventory Technologies", "Technology Gaps"]
 
     correct_header_index = 3  # Use the value that produced the columns above!
@@ -74,7 +75,7 @@ def capture_master_content(filtered_data):
     Returns:
     - pd.DataFrame: A DataFrame containing the standardized data.
     """
-    master_data = pd.read_excel(INVENTORY_PATH, sheet_name=None)
+    master_data = pd.read_excel(os.path.join(DATA_DIR, INVENTORY_PATH), sheet_name=None)
     standardized_data = []
     inventory_sheet_name = "Inventory"
 
@@ -110,7 +111,21 @@ def main():
     })
 
     # Save as json for debugging first
-    standardized_df.to_json(OUTPUT_PATH + 'json', orient='records', indent=4)
+    standardized_df.to_json(os.path.join(DATA_DIR, STANDARDIZED_PATH), orient='records', indent=4)
 
 if __name__ == "__main__":
+    from argparse import ArgumentParser
+    parser = ArgumentParser(description="Process inventory data from Excel files.")
+    parser.add_argument('--data-dir', type=str, default=DATA_DIR, help='Directory where the data files are stored.')
+    parser.add_argument('--standardized-name', type=str, default=STANDARDIZED_PATH, help='Name of the standardized data file.')
+    parser.add_argument('--inventory-name', type=str, default=INVENTORY_PATH, help='Name of the master inventory file.')
+    parser.add_argument('--filtered-name', type=str, default=FILTERED_PATH, help='Name of the filtered data file.')
+    args = parser.parse_args()
+
+    DATA_DIR = args.data_dir
+    INVENTORY_PATH = args.inventory_name
+    FILTERED_PATH = args.filtered_name
+    STANDARDIZED_PATH = args.standardized_name
     main()
+    print(f"Data processing complete. Standardized data saved to '{STANDARDIZED_PATH}'.")
+

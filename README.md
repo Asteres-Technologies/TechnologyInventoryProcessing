@@ -2,57 +2,81 @@
 
 ## Overview
 
-This tool streamlines the process of **extracting specific rows from multiple sheets across Excel workbooks**, collating their metadata, and generating a new, clean standardized dataset. It’s especially helpful for technology inventories, project tracking, or any scenario where you need to curate and reassemble data from complex Excel sources.
+This tool helps you **extract specific rows and metadata from multiple Excel sheets** and **merge them into a standardized output file**. It’s ideal for making sense of complex technology inventories, project tracking data, or any scenario where you curate and consolidate data across many Excel sources.
 
 ## What It Does
 
-1. **Extracts row numbers and key metadata** (such as “Relevance”, “Notes”, and “Link”) from all relevant sheets in a custom _FILTERED.xlsx_ file.
-2. **Ignores special non-standard sheets** (`"Non-Inventory Technologies"` and `"Technology Gaps"`), which can be added manually later.
-3. **Uses the captured row numbers** to pull full row data from a master source (_INVENTORY.xlsx_).
-4. **Creates a standardized output file** that merges the extracted row data and metadata, suitable for further analysis or reporting.
+1. **Extracts row numbers and selected metadata**  
+   Scans all relevant sheets in your filtered Excel workbook (`FILTERED.xlsx`), extracting the row numbers plus columns like “Relevance (1-5)”, “Notes”, and “Link”.
 
-## Expected Input Structure
+2. **Ignores nonstandard sheets**  
+   Skips the `"Non-Inventory Technologies"` and `"Technology Gaps"` sheets; they must be handled manually as their structure differs.
 
-- **FILTERED.xlsx**: 
-  - Multiple sheets, each following this format:
-    ```
-    | Row no. | Organization | Technology | Category | TRL | Description | Relevance (1-5) | Notes | Link |
-    ```
-  - Two sheets ("Non-Inventory Technologies" and "Technology Gaps") are ignored.
+3. **Pulls full row data from a master inventory**  
+   Uses the collected row numbers to select corresponding rows from a master Excel inventory (`INVENTORY.xlsx`).
 
-- **INVENTORY.xlsx**:
-  - Master list with full project/technology data, must contain an “Inventory” sheet.
+4. **Merges and standardizes the results**  
+   Appends the metadata and reorganizes/renames columns for a clean, consistent output.  
 
-## Output
+5. **Outputs a JSON file**  
+   Writes the standardized data to a JSON file, suitable for further analysis, publishing, or importing into other tools.
 
-- **STANDARDIZED.json** (or other formats as needed):
-  - Contains standardized, merged row data using this structure:
-    ```
-    | Row no. | Technology | Producer | Description | Existing Technology | Category 1 | Category 2 | Category 3 | TRL | Functional Category 1 | Functional Category 2 | Relevance (1-5) | Notes | Link |
-    ```
+## Expected Input File Structure
 
-## How To Use
+- **`FILTERED.xlsx`** (User-curated workbook):
+    - Contains multiple sheets, each with this header structure:
+      ```
+      | Row no. | Organization | Technology | Category | TRL | Description | Relevance (1-5) | Notes | Link |
+      ```
+    - Sheets named `"Non-Inventory Technologies"` and `"Technology Gaps"` are ignored.
 
-1. Place your `INVENTORY.xlsx` and `FILTERED.xlsx` in the script directory.
-2. Adjust paths as needed in the script:
-    ```python
-    INVENTORY_PATH = './INVENTORY.xlsx'
-    FILTERED_PATH = './FILTERED.xlsx'
-    OUTPUT_PATH = './STANDARDIZED.'  # Filename suffix omitted for easy path resuse.
-    ```
-3. Run the script:
-    ```
-    python your_script_name.py
-    ```
-4. Review the output `STANDARDIZED.json` file for your clean, formatted dataset.
+- **`INVENTORY.xlsx`** (Master file):
+    - Contains the definitive set of technologies/projects, must have a sheet named `"Inventory"` using the same or superset of columns.
 
-## License
+## Example Output Fields
 
-This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.  
-See the LICENSE file for details.
+```
+| Row no. | Technology | Producer | Description | Existing Technology | Category 1 | Category 2 | Category 3 | TRL | Functional Category 1 | Functional Category 2 | Relevance (1-5) | Notes | Link |
+```
+
+## Usage
+
+1. **Place your data files** in a directory (default: `./data/`):  
+   - `INVENTORY.xlsx` (master inventory)
+   - `FILTERED.xlsx` (filtered identifiers)
+
+2. **Run the script:**
+   ```
+   python your_script.py
+   ```
+
+3. **Optional:** You can override file and directory choices from the command line:
+   ```
+   python your_script.py \
+       --data-dir "./my-data" \
+       --inventory-name "master_inventory.xlsx" \
+       --filtered-name "my_filtered.xlsx" \
+       --standardized-name "output.json"
+   ```
+
+4. **Result:**  
+   Your standardized data will be saved as JSON (default: `./data/standardized_data.json`).
+
+## Command-line Options
+
+- `--data-dir` &nbsp;: Directory containing your Excel files (default: `./data/`)
+- `--inventory-name` &nbsp;: Master inventory filename (default: `INVENTORY.xlsx`)
+- `--filtered-name` &nbsp;: Filtered selector filename (default: `FILTERED.xlsx`)
+- `--standardized-name` &nbsp;: Output filename for standardized data (default: `standardized_data.json`)
 
 ## Notes
 
-- The script skips non-standard sheets and expects consistent headers (adjust `correct_header_index` if your FILES change).
-- Output format can be easily switched from JSON to Excel or CSV (just swap the relevant pandas export call).
-- Feel free to extend or adapt the code for additional fields, more complex mapping, or different output needs.
+- You may need to adjust the `correct_header_index` in the code if your Excel header changes.
+- The output format is easily customizable; pandas also supports writing CSV, XLSX, etc.
+- Extra columns in your Excel files are tolerated; only the specified columns are extracted/renamed for output.
+- The script currently ignores nonstandard sheets (by name); you can manually add those later if necessary.
+
+## License
+
+This project is **GPL v3 licensed**.  
+See `LICENSE` for details. All modifications and redistributions must remain open source.
