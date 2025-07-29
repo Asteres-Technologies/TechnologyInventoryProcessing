@@ -56,5 +56,3 @@ See the LICENSE file for details.
 - The script skips non-standard sheets and expects consistent headers (adjust `correct_header_index` if your FILES change).
 - Output format can be easily switched from JSON to Excel or CSV (just swap the relevant pandas export call).
 - Feel free to extend or adapt the code for additional fields, more complex mapping, or different output needs.
-
-Let me know if you want a more “bare-bones” or “verbose” version, or if you’d like code or usage instructions included inline!
