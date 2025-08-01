@@ -21,49 +21,93 @@ Output format will be:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 0 | Tech X | Org A | Description A | Existing Tech A | Cat 1 | Cat 2 | Cat 3 | 5 | Func Cat 1 | Func Cat 2 | Relevance (1-5) | Notes | Link |
 """
+from typing import Dict, Any
+from math import comb
 import pandas as pd
 import os
+
 
 DATA_DIR = './data/'  # Directory where the data files are stored
 INVENTORY_PATH = './INVENTORY.xlsx' # "Master file" with all of the original data
 FILTERED_PATH = './FILTERED.xlsx' # Handmade file with relevant identifed data
 STANDARDIZED_PATH = './standardized_data'  # Output file for standardized data
 
-def capture_rows_and_metadata():
+def capture_filtered_data(
+    data_dir: str = DATA_DIR, 
+    filtered_path: str = FILTERED_PATH
+) -> Dict[int, Dict[str, Any]]:
     """
-    Capture the row numbers and metadata from the FILTERED_PATH file.
+    Capture the filtered data from the FILTERED_PATH file.
     Reads the specified sheets, extracts the row numbers and their associated metadata,
-    and returns a dictionary where the keys are row numbers and the values are dictionaries
-    containing the metadata.
-    
+    and returns a dict where keys are 'Row no.' and values are the whole dataframe rows as dicts.
+
+    Args:
+        data_dir (str): Directory where the data files are stored.
+        filtered_path (str): Path to the filtered data file.
+
     Returns:
-    - dict: A dictionary where keys are row numbers and values are dictionaries of metadata.
+        Dict[int, Dict[str, Any]]: A dictionary indexed by Row no. with row dicts as values.
     """
-    filtered_data = {}
-    xls = pd.ExcelFile(os.path.join(DATA_DIR, FILTERED_PATH))
-    sheets_to_skip = ["Non-Inventory Technologies", "Technology Gaps"]
+    correct_header_index = 3
+    sheets_to_skip = {"Non-Inventory Technologies", "Technology Gaps"}
+    combined_rows: Dict[int, Dict[str, Any]] = {}
 
-    correct_header_index = 3  # Use the value that produced the columns above!
+    file_path = os.path.join(data_dir, filtered_path)
+    xls = pd.ExcelFile(file_path)
 
-    for sheet_name in xls.sheet_names:
-        if sheet_name in sheets_to_skip:
+    for sheet in xls.sheet_names:
+        if sheet in sheets_to_skip:
             continue
-        df = pd.read_excel(xls, sheet_name=sheet_name, header=correct_header_index)
+        df = pd.read_excel(xls, sheet_name=sheet, header=correct_header_index)
         df.columns = df.columns.str.strip()
+        if 'Row no.' not in df.columns:
+            raise ValueError(
+                f"'Row no.' column not found in sheet '{sheet}' of '{filtered_path}'."
+            )
+        df['Row no.'] = pd.to_numeric(df['Row no.'], errors='coerce')
+        df = df.dropna(subset=['Row no.'])
+        df['Row no.'] = df['Row no.'].astype(int)
+        df = df[df['Row no.'] > 0]
+        combined_rows.update(df.set_index('Row no.').to_dict(orient='index'))
+    if not combined_rows:
+        raise ValueError("No valid rows found in the filtered data file.")
+    return combined_rows
 
-        for index, row in df.iterrows():
-            row_no = row.get('Row no.')
-            if pd.isna(row_no):
-                continue
-            filtered_data[row_no] = {
-                'Relevance (1-5)': row.get('Relevance (1-5)', None),
-                'Notes': row.get('Notes', None),
-                'Link': row.get('Link', None)
-            }
-    return filtered_data
+
+def capture_rows_and_metadata(
+    data_dir: str = DATA_DIR,
+    filtered_path: str = FILTERED_PATH
+) -> tuple[dict[int, dict[str, object]], list[int]]:
+    """
+    Capture row numbers and key metadata from the specified filtered data file.
+
+    Reads the filtered sheets, extracts the row numbers and associated metadata,
+    and returns:
+      - A dictionary: keys are row numbers (int), values are dicts with metadata.
+      - A list: all used row numbers (int).
+
+    Returns:
+        tuple:
+            - dict[int, dict[str, object]]: Row number → metadata dict.
+            - list[int]: List of row numbers present.
+    """
+    filtered_data = capture_filtered_data(data_dir, filtered_path)
+
+    rows_to_use: list[int] = []
+    metadata_dict: dict[int, dict[str, object]] = {}
+
+    for row_no, row in filtered_data.items():
+        # No need for pd.isna or type cast; capture_filtered_data guarantees int keys > 0
+        rows_to_use.append(row_no)
+        metadata_dict[row_no] = {
+            'Relevance (1-5)': row.get('Relevance (1-5)'),
+            'Notes': row.get('Notes'),
+            'Link': row.get('Link')
+        }
+    return metadata_dict, rows_to_use
 
 
-def capture_master_content(inventory_path: str, data_dir: str, sheet_name: str="Inventory") -> pd.DataFrame:
+def capture_master_content(inventory_path: str = INVENTORY_PATH, data_dir: str = DATA_DIR, sheet_name: str = "Inventory") -> pd.DataFrame:
     """
     Capture the master content from the specified inventory file and sheet.
     Args:
@@ -79,7 +123,8 @@ def capture_master_content(inventory_path: str, data_dir: str, sheet_name: str="
 
     return df
 
-def standardize_data(master_content: pd.DataFrame, rows_to_use: list, metadata_dict: dict) -> pd.DataFrame:
+
+def standardize_data(master_content: pd.DataFrame, metadata_dict: dict, rows_to_use: list) -> pd.DataFrame:
     """
     Standardize the data by enriching the rows with metadata.
 
@@ -88,8 +133,8 @@ def standardize_data(master_content: pd.DataFrame, rows_to_use: list, metadata_d
 
     Args:
         master_content (pd.DataFrame): DataFrame with master content
-        rows_to_use (list): List of row indices to include
         metadata_dict (dict): {row_no: metadata_dict, ...}
+        rows_to_use (list): List of row indices to include
 
     Returns:
         pd.DataFrame: Enriched DataFrame
@@ -99,23 +144,25 @@ def standardize_data(master_content: pd.DataFrame, rows_to_use: list, metadata_d
     # Ensure the rows_to_use are integers then reduce the master_content to only those rows
     if not isinstance(rows_to_use, list):
         raise ValueError("rows_to_use should be a list of row numbers.")
-    rows_to_use = [int(row) for row in rows_to_use if isinstance(row, (int, float)) and not pd.isna(row)]
+    rows_to_use = [(int(row)-2) for row in rows_to_use if isinstance(row, (int, float)) and not pd.isna(row)]
     rows_df = master_content[master_content.index.isin(rows_to_use)]
 
     for idx, row in rows_df.iterrows():
-        row_no = idx
+        row_no = idx+2
         metadata = metadata_dict.get(row_no, {})
         row_data = row.to_dict()
         row_data.update(metadata)
         enriched_rows.append(row_data)
     return pd.DataFrame(enriched_rows)
 
+
 def main(output_type: str = 'json'):
     """
     Main function to execute the row capture and standardization process.
     """
-    filtered_data = capture_rows_and_metadata()
-    standardized_df = capture_master_content(filtered_data)
+    metadata, rows_to_use = capture_rows_and_metadata()
+    captured_data = capture_master_content(INVENTORY_PATH, DATA_DIR)
+    standardized_df = standardize_data(captured_data, metadata, rows_to_use)
 
     # Reorder and rename columns as per the output format
     standardized_df = standardized_df.rename(columns={
@@ -135,6 +182,7 @@ def main(output_type: str = 'json'):
             standardized_df.to_json(os.path.join(DATA_DIR, STANDARDIZED_PATH), orient='records', indent=4)
         case 'excel':
             standardized_df.to_excel(os.path.join(DATA_DIR, STANDARDIZED_PATH), index=False)
+
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
