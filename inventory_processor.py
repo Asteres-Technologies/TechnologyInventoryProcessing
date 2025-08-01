@@ -44,7 +44,6 @@ def capture_rows_and_metadata():
     sheets_to_skip = ["Non-Inventory Technologies", "Technology Gaps"]
 
     correct_header_index = 3  # Use the value that produced the columns above!
-    desired_columns = ['Row no.', 'Relevance (1-5)', 'Notes', 'Link']
 
     for sheet_name in xls.sheet_names:
         if sheet_name in sheets_to_skip:
@@ -64,32 +63,52 @@ def capture_rows_and_metadata():
     return filtered_data
 
 
-def capture_master_content(filtered_data):
+def capture_master_content(inventory_path: str, data_dir: str, sheet_name: str="Inventory") -> pd.DataFrame:
     """
-    Capture the content of the specified rows from the INVENTORY_PATH file.
-    Uses the row numbers captured from the FILTERED_PATH file.
-    Appends the metadata to the master content as extra columns.
+    Capture the master content from the specified inventory file and sheet.
+    Args:
+        inventory_path (str): Path to the master inventory file.
+        data_dir (str): Directory where the data files are stored.
+        sheet_name (str): Name of the sheet to read from the Excel file.
+    Returns:
+        pd.DataFrame: DataFrame containing the captured rows and their metadata.
+    """
+    full_path = os.path.join(data_dir, inventory_path)
+    df = pd.read_excel(full_path, sheet_name=sheet_name)
+    df.columns = df.columns.str.strip()
+
+    return df
+
+def standardize_data(master_content: pd.DataFrame, rows_to_use: list, metadata_dict: dict) -> pd.DataFrame:
+    """
+    Standardize the data by enriching the rows with metadata.
+
+    This function takes a DataFrame of rows and a dictionary of metadata,
+    and returns a new DataFrame where each row is enriched with the corresponding metadata.
 
     Args:
-    - filtered_data (dict): A dictionary containing row numbers and their metadata.
+        master_content (pd.DataFrame): DataFrame with master content
+        rows_to_use (list): List of row indices to include
+        metadata_dict (dict): {row_no: metadata_dict, ...}
+
     Returns:
-    - pd.DataFrame: A DataFrame containing the standardized data.
+        pd.DataFrame: Enriched DataFrame
     """
-    master_data = pd.read_excel(os.path.join(DATA_DIR, INVENTORY_PATH), sheet_name=None)
-    standardized_data = []
-    inventory_sheet_name = "Inventory"
+    # Map row number to DataFrame index if needed
+    enriched_rows = []
+    # Ensure the rows_to_use are integers then reduce the master_content to only those rows
+    if not isinstance(rows_to_use, list):
+        raise ValueError("rows_to_use should be a list of row numbers.")
+    rows_to_use = [int(row) for row in rows_to_use if isinstance(row, (int, float)) and not pd.isna(row)]
+    rows_df = master_content[master_content.index.isin(rows_to_use)]
 
-    if inventory_sheet_name in master_data:
-        df = master_data[inventory_sheet_name]
-        df.columns = df.columns.str.strip()
-
-        for row_no, metadata in filtered_data.items():
-            if row_no in df.index:
-                row_data = df.loc[row_no].to_dict()
-                row_data.update(metadata)  # Add metadata to the row data
-                standardized_data.append(row_data)
-
-    return pd.DataFrame(standardized_data)
+    for idx, row in rows_df.iterrows():
+        row_no = idx
+        metadata = metadata_dict.get(row_no, {})
+        row_data = row.to_dict()
+        row_data.update(metadata)
+        enriched_rows.append(row_data)
+    return pd.DataFrame(enriched_rows)
 
 def main(output_type: str = 'json'):
     """
